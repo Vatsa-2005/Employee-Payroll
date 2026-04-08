@@ -698,7 +698,7 @@ td.mono{font-family:'DM Mono',monospace;font-size:12px;}
 
       <!-- LOGIN FORM -->
       <div id="loginForm" class="auth-form active">
-        <div id="loginError" class="error-msg">Invalid credentials. Please try again.</div>
+        <div id="loginError" class="error-msg"></div>
         <div id="loginSuccess" class="success-msg">Registration successful! Please log in.</div>
 
         <div class="form-group">
@@ -854,6 +854,11 @@ td.mono{font-family:'DM Mono',monospace;font-size:12px;}
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
           Reports
         </div>
+        <div class="nav-item" onclick="navigate('reg-approvals',this)" id="regApprovalsNav">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+          Reg. Approvals
+          <span class="nav-badge-count" id="regApprovalCount" style="background:var(--red);">0</span>
+        </div>
         <div class="nav-item" onclick="navigate('settings',this)">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           Settings
@@ -972,6 +977,9 @@ td.mono{font-family:'DM Mono',monospace;font-size:12px;}
         </div>
       </div>
     </div>
+
+    <!-- Pending registration approvals banner (shown dynamically) -->
+    <div id="dashPendingReg" style="display:none;"></div>
 
     <!-- EMPLOYEES PAGE -->
     <div class="page" id="page-employees">
@@ -1295,6 +1303,35 @@ td.mono{font-family:'DM Mono',monospace;font-size:12px;}
       </div>
     </div>
 
+    <!-- REGISTRATION APPROVALS PAGE -->
+    <div class="page" id="page-reg-approvals">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h1>Registration Approvals</h1>
+          <p>Review and approve employee self-registration requests</p>
+        </div>
+        <button class="btn btn-secondary" onclick="renderRegApprovals()">↻ Refresh</button>
+      </div>
+      <div class="grid-2 mb20">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Pending Requests</span>
+            <span class="badge badge-yellow" id="regPendingBadge">0</span>
+          </div>
+          <div id="regPendingList" class="card-body" style="padding-top:8px;"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Approval History</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Name</th><th>Username</th><th>Dept</th><th>Requested</th><th>Status</th></tr></thead>
+              <tbody id="regHistoryTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div><!-- end main -->
 </div><!-- end appScreen -->
 
@@ -1408,62 +1445,94 @@ td.mono{font-family:'DM Mono',monospace;font-size:12px;}
 <!-- ═══════════════════════════════ JAVASCRIPT ═══════════════════════════════ -->
 <script>
 // ════════════════════════════════════════════════════════════
-// DATA STORE
+// SEED / DEFAULT DATA  (used only if localStorage is empty)
 // ════════════════════════════════════════════════════════════
-const DB = {
-  settings: {
-    hra: 20, ta: 10, bonus: 5, pf: 12,
-    cl: 12, sl: 10, el: 20, ol: 3,
-    tds: 10, pt: 200, org: 'PayCore Technologies'
-  },
+const SEED = {
+  settings: { hra:20, ta:10, bonus:5, pf:12, cl:12, sl:10, el:20, ol:3, tds:10, pt:200, org:'PayCore Technologies' },
   users: [
-    { username: 'admin', password: 'admin123', role: 'admin', name: 'Admin Kumar', email: 'admin@paycore.io' },
-    { username: 'EMP-001', password: 'emp123', role: 'employee', empId: 'EMP-001', name: 'Priya Sharma' },
-    { username: 'EMP-002', password: 'emp123', role: 'employee', empId: 'EMP-002', name: 'Rahul Gupta' },
-    { username: 'EMP-003', password: 'emp123', role: 'employee', empId: 'EMP-003', name: 'Arjun Nair' },
-    { username: 'EMP-004', password: 'emp123', role: 'employee', empId: 'EMP-004', name: 'Kiran Patel' },
-    { username: 'EMP-005', password: 'emp123', role: 'employee', empId: 'EMP-005', name: 'Sneha Mehta' }
+    { username:'admin',   password:'admin123', role:'admin',    name:'Admin Kumar',  email:'admin@paycore.io' },
+    { username:'EMP-001', password:'emp123',   role:'employee', name:'Priya Sharma', email:'priya@paycore.io',  empId:'EMP-001' },
+    { username:'EMP-002', password:'emp123',   role:'employee', name:'Rahul Gupta',  email:'rahul@paycore.io',  empId:'EMP-002' },
+    { username:'EMP-003', password:'emp123',   role:'employee', name:'Arjun Nair',   email:'arjun@paycore.io',  empId:'EMP-003' },
+    { username:'EMP-004', password:'emp123',   role:'employee', name:'Kiran Patel',  email:'kiran@paycore.io',  empId:'EMP-004' },
+    { username:'EMP-005', password:'emp123',   role:'employee', name:'Sneha Mehta',  email:'sneha@paycore.io',  empId:'EMP-005' }
   ],
   employees: [
-    { id: 'EMP-001', first: 'Priya',  last: 'Sharma', email: 'priya@paycore.io',  dept: 'Engineering', desig: 'Senior Developer',  doj: '2022-01-15', salary: 95000, status: 'Active',    address: 'Hyderabad, TS' },
-    { id: 'EMP-002', first: 'Rahul',  last: 'Gupta',  email: 'rahul@paycore.io',  dept: 'Engineering', desig: 'Junior Developer',   doj: '2026-03-01', salary: 55000, status: 'Probation', address: 'Bangalore, KA' },
-    { id: 'EMP-003', first: 'Arjun',  last: 'Nair',   email: 'arjun@paycore.io',  dept: 'Sales',       desig: 'Sales Manager',      doj: '2021-07-10', salary: 80000, status: 'Active',    address: 'Chennai, TN' },
-    { id: 'EMP-004', first: 'Kiran',  last: 'Patel',  email: 'kiran@paycore.io',  dept: 'HR',          desig: 'HR Executive',       doj: '2020-02-22', salary: 62000, status: 'On Leave',  address: 'Pune, MH' },
-    { id: 'EMP-005', first: 'Sneha',  last: 'Mehta',  email: 'sneha@paycore.io',  dept: 'Finance',     desig: 'Finance Analyst',    doj: '2023-08-05', salary: 72000, status: 'Active',    address: 'Mumbai, MH' },
-    { id: 'EMP-006', first: 'Vikram', last: 'Singh',  email: 'vikram@paycore.io', dept: 'Operations',  desig: 'Operations Lead',    doj: '2019-11-20', salary: 68000, status: 'Active',    address: 'Delhi, DL' }
+    { id:'EMP-001', first:'Priya',  last:'Sharma', email:'priya@paycore.io',  dept:'Engineering', desig:'Senior Developer', doj:'2022-01-15', salary:95000, status:'Active',   address:'Hyderabad, TS' },
+    { id:'EMP-002', first:'Rahul',  last:'Gupta',  email:'rahul@paycore.io',  dept:'Engineering', desig:'Junior Developer',  doj:'2026-03-01', salary:55000, status:'Probation',address:'Bangalore, KA' },
+    { id:'EMP-003', first:'Arjun',  last:'Nair',   email:'arjun@paycore.io',  dept:'Sales',       desig:'Sales Manager',     doj:'2021-07-10', salary:80000, status:'Active',   address:'Chennai, TN'  },
+    { id:'EMP-004', first:'Kiran',  last:'Patel',  email:'kiran@paycore.io',  dept:'HR',          desig:'HR Executive',      doj:'2020-02-22', salary:62000, status:'On Leave', address:'Pune, MH'     },
+    { id:'EMP-005', first:'Sneha',  last:'Mehta',  email:'sneha@paycore.io',  dept:'Finance',     desig:'Finance Analyst',   doj:'2023-08-05', salary:72000, status:'Active',   address:'Mumbai, MH'   },
+    { id:'EMP-006', first:'Vikram', last:'Singh',  email:'vikram@paycore.io', dept:'Operations',  desig:'Operations Lead',   doj:'2019-11-20', salary:68000, status:'Active',   address:'Delhi, DL'    }
   ],
   leaves: [
-    { id: 1, empId: 'EMP-001', type: 'Casual Leave',  from: '2026-04-05', to: '2026-04-07', reason: 'Family function',  status: 'Pending',  days: 3 },
-    { id: 2, empId: 'EMP-004', type: 'Sick Leave',    from: '2026-04-03', to: '2026-04-04', reason: 'Medical',         status: 'Pending',  days: 2 },
-    { id: 3, empId: 'EMP-003', type: 'Earned Leave',  from: '2026-04-10', to: '2026-04-15', reason: 'Vacation',        status: 'Pending',  days: 6 },
-    { id: 4, empId: 'EMP-002', type: 'Casual Leave',  from: '2026-03-20', to: '2026-03-20', reason: 'Personal work',   status: 'Approved', days: 1 },
-    { id: 5, empId: 'EMP-005', type: 'Sick Leave',    from: '2026-03-10', to: '2026-03-11', reason: 'Fever',           status: 'Approved', days: 2 },
-    { id: 6, empId: 'EMP-003', type: 'Casual Leave',  from: '2026-03-25', to: '2026-03-25', reason: 'Errand',          status: 'Denied',   days: 1 }
+    { id:1, empId:'EMP-001', type:'Casual Leave', from:'2026-04-05', to:'2026-04-07', reason:'Family function', status:'Pending',  days:3 },
+    { id:2, empId:'EMP-004', type:'Sick Leave',   from:'2026-04-03', to:'2026-04-04', reason:'Medical',         status:'Pending',  days:2 },
+    { id:3, empId:'EMP-003', type:'Earned Leave', from:'2026-04-10', to:'2026-04-15', reason:'Vacation',        status:'Pending',  days:6 },
+    { id:4, empId:'EMP-002', type:'Casual Leave', from:'2026-03-20', to:'2026-03-20', reason:'Personal work',   status:'Approved', days:1 },
+    { id:5, empId:'EMP-005', type:'Sick Leave',   from:'2026-03-10', to:'2026-03-11', reason:'Fever',           status:'Approved', days:2 },
+    { id:6, empId:'EMP-003', type:'Casual Leave', from:'2026-03-25', to:'2026-03-25', reason:'Errand',          status:'Denied',   days:1 }
   ],
   payrolls: {
-    'March 2026':    { processed: true,  total: 34200000, deductions: 5800000, net: 28400000 },
-    'February 2026': { processed: true,  total: 33500000, deductions: 5650000, net: 27850000 },
-    'January 2026':  { processed: false, total: 0, deductions: 0, net: 0 }
+    'March 2026':    { processed:true,  total:34200000, deductions:5800000, net:28400000 },
+    'February 2026': { processed:true,  total:33500000, deductions:5650000, net:27850000 },
+    'January 2026':  { processed:false, total:0, deductions:0, net:0 }
   },
   nextEmpNum: 7,
   leaveNextId: 7,
+  pendingRegistrations: [],   // ← approval queue for self-registered employees
   activities: [
-    { text: 'Payroll for <strong>March 2026</strong> processed — 6 employees', time: 'Today, 10:24 AM', color: '#34d399' },
-    { text: '<strong>Priya Sharma</strong> applied for Casual Leave', time: 'Today, 09:15 AM', color: '#fbbf24' },
-    { text: 'New employee <strong>Vikram Singh</strong> added to Operations', time: 'Yesterday, 03:42 PM', color: '#6c63ff' },
-    { text: 'Tax settings updated for <strong>Q4 FY 2025–26</strong>', time: 'Mar 31, 11:00 AM', color: '#38bdf8' }
+    { text:'Payroll for <strong>March 2026</strong> processed — 6 employees', time:'Today, 10:24 AM', color:'#34d399' },
+    { text:'<strong>Priya Sharma</strong> applied for Casual Leave',           time:'Today, 09:15 AM', color:'#fbbf24' },
+    { text:'New employee <strong>Vikram Singh</strong> added to Operations',   time:'Yesterday, 03:42 PM', color:'#6c63ff' },
+    { text:'Tax settings updated for <strong>Q4 FY 2025–26</strong>',         time:'Mar 31, 11:00 AM', color:'#38bdf8' }
   ]
 };
 
-// Leave balances per employee (used: 0 from DB; store here)
-const leaveUsed = {
-  'EMP-001': { 'Casual Leave':3, 'Sick Leave':1, 'Earned Leave':4, 'Optional Leave':0 },
-  'EMP-002': { 'Casual Leave':1, 'Sick Leave':0, 'Earned Leave':0, 'Optional Leave':0 },
-  'EMP-003': { 'Casual Leave':0, 'Sick Leave':0, 'Earned Leave':0, 'Optional Leave':0 },
-  'EMP-004': { 'Casual Leave':2, 'Sick Leave':5, 'Earned Leave':3, 'Optional Leave':1 },
-  'EMP-005': { 'Casual Leave':1, 'Sick Leave':2, 'Earned Leave':2, 'Optional Leave':0 },
-  'EMP-006': { 'Casual Leave':0, 'Sick Leave':0, 'Earned Leave':0, 'Optional Leave':0 }
+const SEED_LEAVE_USED = {
+  'EMP-001':{ 'Casual Leave':3,'Sick Leave':1,'Earned Leave':4,'Optional Leave':0 },
+  'EMP-002':{ 'Casual Leave':1,'Sick Leave':0,'Earned Leave':0,'Optional Leave':0 },
+  'EMP-003':{ 'Casual Leave':0,'Sick Leave':0,'Earned Leave':0,'Optional Leave':0 },
+  'EMP-004':{ 'Casual Leave':2,'Sick Leave':5,'Earned Leave':3,'Optional Leave':1 },
+  'EMP-005':{ 'Casual Leave':1,'Sick Leave':2,'Earned Leave':2,'Optional Leave':0 },
+  'EMP-006':{ 'Casual Leave':0,'Sick Leave':0,'Earned Leave':0,'Optional Leave':0 }
 };
+
+// ════════════════════════════════════════════════════════════
+// LOCALSTORAGE PERSISTENCE
+// ════════════════════════════════════════════════════════════
+const LS_KEY      = 'paycore_db';
+const LS_LU_KEY   = 'paycore_lu';
+
+function saveDB() {
+  try {
+    localStorage.setItem(LS_KEY,    JSON.stringify(DB));
+    localStorage.setItem(LS_LU_KEY, JSON.stringify(leaveUsed));
+  } catch(e) { console.warn('localStorage save failed', e); }
+}
+
+function loadDB() {
+  try {
+    const raw   = localStorage.getItem(LS_KEY);
+    const rawLU = localStorage.getItem(LS_LU_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      // Merge every key so new seed keys (like pendingRegistrations) are always present
+      Object.assign(DB, saved);
+      if (!DB.pendingRegistrations) DB.pendingRegistrations = [];
+    }
+    if (rawLU) Object.assign(leaveUsed, JSON.parse(rawLU));
+  } catch(e) { console.warn('localStorage load failed', e); }
+}
+
+// ════════════════════════════════════════════════════════════
+// DATA STORE  (live, mutable — persisted to localStorage)
+// ════════════════════════════════════════════════════════════
+const DB = JSON.parse(JSON.stringify(SEED));          // deep-clone seed as starting state
+const leaveUsed = JSON.parse(JSON.stringify(SEED_LEAVE_USED));
+
+// Overlay with any saved data immediately
+loadDB();
 
 // Current session
 let currentUser = null;
@@ -1513,15 +1582,24 @@ function selectRegRole(role) {
 function handleLogin() {
   const username = document.getElementById('loginUsername').value.trim();
   const password = document.getElementById('loginPassword').value;
+  const errEl    = document.getElementById('loginError');
   hide('loginError');
+
+  // Block if still in approval queue
+  const inQueue = (DB.pendingRegistrations||[]).find(r => r.username === username);
+  if (inQueue) {
+    errEl.textContent = inQueue.status === 'Denied'
+      ? 'Your registration was denied by the admin. Please contact HR.'
+      : '⏳ Your account is pending admin approval. Please wait.';
+    show('loginError'); return;
+  }
 
   const user = DB.users.find(u =>
     u.username === username && u.password === password && u.role === loginSelectedRole
   );
-
   if (!user) {
-    show('loginError');
-    return;
+    errEl.textContent = 'Invalid credentials. Please try again.';
+    show('loginError'); return;
   }
 
   currentUser = user;
@@ -1540,32 +1618,41 @@ function handleRegister() {
   const errEl = document.getElementById('registerError');
   hide('registerError'); hide('registerSuccess');
 
-  if (!first || !last || !email || !uname || !pass) { errEl.textContent = 'Please fill in all required fields.'; show('registerError'); return; }
-  if (pass.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; show('registerError'); return; }
-  if (pass !== conf) { errEl.textContent = 'Passwords do not match.'; show('registerError'); return; }
-  if (DB.users.find(u => u.username === uname)) { errEl.textContent = 'Username already taken.'; show('registerError'); return; }
-  if (regSelectedRole === 'employee' && !dept) { errEl.textContent = 'Please select your department.'; show('registerError'); return; }
-
-  const newUser = { username: uname, password: pass, role: regSelectedRole, name: first + ' ' + last, email };
+  if (!first||!last||!email||!uname||!pass) { errEl.textContent='Please fill in all required fields.'; show('registerError'); return; }
+  if (pass.length < 6)  { errEl.textContent='Password must be at least 6 characters.'; show('registerError'); return; }
+  if (pass !== conf)    { errEl.textContent='Passwords do not match.'; show('registerError'); return; }
+  if (DB.users.find(u => u.username === uname) || (DB.pendingRegistrations||[]).find(r => r.username === uname)) {
+    errEl.textContent='Username already taken.'; show('registerError'); return;
+  }
+  if (regSelectedRole === 'employee' && !dept) { errEl.textContent='Please select your department.'; show('registerError'); return; }
 
   if (regSelectedRole === 'employee') {
-    const empId = 'EMP-' + String(DB.nextEmpNum++).padStart(3,'0');
-    newUser.empId = empId;
-    DB.employees.push({
-      id: empId, first, last, email, dept, desig: 'New Employee',
-      doj: new Date().toISOString().split('T')[0],
-      salary: 40000, status: 'Probation', address: ''
+    // ── Employee self-registration → goes to ADMIN APPROVAL QUEUE ──
+    const reqId = 'REG-' + Date.now();
+    const pendingEmpId = 'EMP-' + String(DB.nextEmpNum).padStart(3,'0'); // reserved but not yet assigned
+    if (!DB.pendingRegistrations) DB.pendingRegistrations = [];
+    DB.pendingRegistrations.push({
+      id: reqId,
+      username: uname, password: pass,
+      first, last, email, dept,
+      reservedEmpId: pendingEmpId,
+      status: 'Pending',
+      requestedAt: new Date().toLocaleString('en-IN')
     });
-    leaveUsed[empId] = { 'Casual Leave':0, 'Sick Leave':0, 'Earned Leave':0, 'Optional Leave':0 };
-    document.getElementById('registerSuccess').textContent = `Account created! Your Employee ID is ${empId}. Log in with username: ${uname}`;
+    saveDB();
+    const sucEl = document.getElementById('registerSuccess');
+    sucEl.textContent = '';
+    sucEl.innerHTML = `✅ Registration request submitted!<br><small style="color:var(--text3);">Your request has been sent to the admin for approval.<br>You will be able to log in once approved.<br>Requested username: <strong>${uname}</strong></small>`;
+    show('registerSuccess');
   } else {
+    // Admin self-registers → immediate (no approval needed for admins)
+    DB.users.push({ username:uname, password:pass, role:'admin', name:first+' '+last, email });
+    saveDB();
     document.getElementById('registerSuccess').textContent = 'Admin account created! You can now log in.';
+    show('registerSuccess');
   }
 
-  DB.users.push(newUser);
-  show('registerSuccess');
-  // clear form
-  ['regFirst','regLast','regEmail','regUsername','regPassword','regConfirm'].forEach(id => document.getElementById(id).value = '');
+  ['regFirst','regLast','regEmail','regUsername','regPassword','regConfirm'].forEach(id => { const e=document.getElementById(id); if(e) e.value=''; });
 }
 
 function launchApp() {
@@ -1573,17 +1660,17 @@ function launchApp() {
   document.getElementById('appScreen').classList.add('active');
 
   const isAdmin = currentRole === 'admin';
-  document.getElementById('adminNav').style.display = isAdmin ? 'block' : 'none';
-  document.getElementById('employeeNav').style.display = isAdmin ? 'none' : 'block';
+  document.getElementById('adminNav').style.display    = isAdmin ? 'block' : 'none';
+  document.getElementById('employeeNav').style.display = isAdmin ? 'none'  : 'block';
 
   const badge = document.getElementById('roleBadge');
   badge.textContent = isAdmin ? 'Administrator' : 'Employee';
-  badge.className = 'role-badge ' + (isAdmin ? 'admin' : 'employee');
+  badge.className   = 'role-badge ' + (isAdmin ? 'admin' : 'employee');
 
-  const initials = currentUser.name.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase();
-  document.getElementById('userAvatar').textContent = initials;
-  document.getElementById('userName').textContent = currentUser.name;
-  document.getElementById('userRoleLabel').textContent = isAdmin ? 'Administrator' : 'Employee · ' + (currentUser.empId || '');
+  const initials = currentUser.name.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase();
+  document.getElementById('userAvatar').textContent    = initials;
+  document.getElementById('userName').textContent      = currentUser.name;
+  document.getElementById('userRoleLabel').textContent = isAdmin ? 'Administrator' : 'Employee · ' + (currentUser.empId||'');
 
   if (isAdmin) {
     navigate('dashboard', document.querySelector('#adminNav .nav-item'));
@@ -1595,6 +1682,8 @@ function launchApp() {
     renderAdminPayslips();
     updateEmpCount();
     updatePendingLeaveCount();
+    updateRegApprovalBadge();
+    renderRegApprovals();
   } else {
     navigate('emp-dashboard', document.querySelector('#employeeNav .nav-item'));
     renderEmpDashboard();
@@ -1609,6 +1698,7 @@ function launchApp() {
 }
 
 function logout() {
+  saveDB(); // persist any in-session changes before leaving
   currentUser = null; currentRole = null;
   document.getElementById('appScreen').classList.remove('active');
   document.getElementById('loginScreen').classList.add('active');
@@ -1632,7 +1722,7 @@ function navigate(page, el) {
     'dashboard':'Dashboard','employees':'Employees','payroll':'Payroll Processing',
     'payslips-admin':'Payslips','leave-admin':'Leave & Attendance','reports':'Reports','settings':'Settings',
     'emp-dashboard':'My Dashboard','my-payslips':'My Payslips','my-leave':'Leave Requests',
-    'my-profile':'My Profile','my-attendance':'Attendance'
+    'my-profile':'My Profile','my-attendance':'Attendance','reg-approvals':'Registration Approvals'
   };
   document.getElementById('topbarTitle').textContent = titles[page] || page;
   closeSidebar();
@@ -1703,6 +1793,7 @@ function renderAdminDashboard() {
   const pending = DB.leaves.filter(l => l.status === 'Pending').length;
   const totalNet = emps.reduce((s,e) => s + calcSalary(e).net, 0);
 
+  const pendingReg = (DB.pendingRegistrations||[]).filter(r=>r.status==='Pending').length;
   document.getElementById('adminStats').innerHTML = `
     <div class="stat-card purple"><div class="stat-icon purple">👥</div>
       <div class="stat-label">Total Employees</div><div class="stat-value">${emps.length}</div>
@@ -1716,6 +1807,9 @@ function renderAdminDashboard() {
     <div class="stat-card orange"><div class="stat-icon orange">🏖</div>
       <div class="stat-label">Pending Leaves</div><div class="stat-value">${pending}</div>
       <div class="stat-change down">Awaiting approval</div></div>
+    ${pendingReg > 0 ? `<div class="stat-card" style="border-color:rgba(248,113,113,.3);"><div class="stat-icon" style="background:rgba(248,113,113,.12);">🆕</div>
+      <div class="stat-label" style="color:var(--red);">Reg. Approvals</div><div class="stat-value" style="color:var(--red);">${pendingReg}</div>
+      <div class="stat-change down" style="cursor:pointer;" onclick="navigate('reg-approvals',document.getElementById('regApprovalsNav'))">Review now →</div></div>` : ''}
   `;
 
   document.getElementById('payrollTrendVal').textContent = fmtL(totalNet);
@@ -1744,6 +1838,8 @@ function renderAdminDashboard() {
 
   // Pending leave on dashboard
   renderDashPendingLeave();
+  // Pending registration approvals on dashboard
+  renderDashPendingReg();
 }
 
 function renderDashPendingLeave() {
@@ -1767,6 +1863,37 @@ function renderDashPendingLeave() {
       </div>
     </div>`;
   }).join('');
+}
+
+function renderDashPendingReg() {
+  const pendingReg = (DB.pendingRegistrations||[]).filter(r=>r.status==='Pending');
+  const el = document.getElementById('dashPendingReg');
+  if (!el) return;
+  if (!pendingReg.length) { el.style.display='none'; return; }
+  el.style.display='block';
+  el.innerHTML = `
+    <div class="card" style="border-color:rgba(248,113,113,.3);margin-top:18px;">
+      <div class="card-header" style="border-color:rgba(248,113,113,.2);">
+        <span class="card-title">🆕 Pending Registration Approvals</span>
+        <span class="badge badge-red">${pendingReg.length} new</span>
+      </div>
+      <div class="card-body" style="padding-top:8px;">
+        ${pendingReg.slice(0,2).map(r=>`
+          <div style="padding:11px;background:rgba(248,113,113,.05);border:1px solid rgba(248,113,113,.15);border-radius:9px;margin-bottom:10px;">
+            <div class="flex-between" style="margin-bottom:5px;">
+              <span style="font-size:13px;font-weight:500;">${r.first} ${r.last}</span>
+              <span class="badge badge-red">Needs Approval</span>
+            </div>
+            <div style="font-size:12px;color:var(--text3);margin-bottom:8px;">${r.dept} · @${r.username} · ${r.requestedAt}</div>
+            <div class="flex-gap">
+              <button class="btn btn-success btn-sm" onclick="approveRegistration('${r.id}')">✓ Approve</button>
+              <button class="btn btn-danger btn-sm" onclick="denyRegistration('${r.id}')">✕ Deny</button>
+              <button class="btn btn-secondary btn-sm" onclick="navigate('reg-approvals',document.getElementById('regApprovalsNav'))">View All</button>
+            </div>
+          </div>`).join('')}
+        ${pendingReg.length > 2 ? `<div style="text-align:center;font-size:12px;color:var(--accent2);cursor:pointer;padding:6px 0;" onclick="navigate('reg-approvals',document.getElementById('regApprovalsNav'))">+ ${pendingReg.length-2} more pending →</div>` : ''}
+      </div>
+    </div>`;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1834,6 +1961,7 @@ function addEmployee() {
   DB.users.push({ username:empId, password:'emp123', role:'employee', empId, name:first+' '+last });
 
   closeModal('addEmpModal');
+  saveDB();
   renderEmpTable();
   updateEmpCount();
   renderAdminDashboard();
@@ -1868,6 +1996,7 @@ function saveEditEmployee() {
   e.salary=parseInt(document.getElementById('editEmpSalary').value)||e.salary;
   e.status=document.getElementById('editEmpStatus').value;
   closeModal('editEmpModal');
+  saveDB();
   renderEmpTable();
   renderAdminDashboard();
   showToast(`${e.first} ${e.last} updated!`, '✓');
@@ -1879,6 +2008,7 @@ function deleteEmp(id) {
   if(idx<0) return;
   const name=DB.employees[idx].first+' '+DB.employees[idx].last;
   DB.employees.splice(idx,1);
+  saveDB();
   renderEmpTable();
   updateEmpCount();
   renderAdminDashboard();
@@ -1990,6 +2120,7 @@ function runPayroll() {
   setTimeout(() => {
     if (!DB.payrolls[month]) DB.payrolls[month] = {};
     DB.payrolls[month].processed = true;
+    saveDB();
     renderPayrollSteps('done');
     DB.activities.unshift({ text:`Payroll for <strong>${month}</strong> processed — ${DB.employees.length} employees`, time:'Just now', color:'#34d399' });
     renderAdminDashboard();
@@ -2147,6 +2278,7 @@ function approveLeave(id) {
   const emp=DB.employees.find(e=>e.id===l.empId);
   if (emp && emp.status==='Active') emp.status='On Leave';
   DB.activities.unshift({ text:`Leave for <strong>${emp?emp.first+' '+emp.last:l.empId}</strong> approved`, time:'Just now', color:'#34d399' });
+  saveDB();
   renderAdminLeave(); renderDashPendingLeave(); updatePendingLeaveCount();
   showToast('Leave approved!', '✓');
 }
@@ -2155,6 +2287,7 @@ function denyLeave(id) {
   const l = DB.leaves.find(x=>x.id===id);
   if (!l || l.status!=='Pending') return;
   l.status = 'Denied';
+  saveDB();
   renderAdminLeave(); renderDashPendingLeave(); updatePendingLeaveCount();
   showToast('Leave request denied', '✕');
 }
@@ -2277,6 +2410,7 @@ function saveSettings() {
   DB.settings.pt     = parseInt(document.getElementById('settingPT').value)||200;
   DB.settings.tds    = parseInt(document.getElementById('settingTDS').value)||10;
   DB.settings.org    = document.getElementById('settingOrg').value||'PayCore Technologies';
+  saveDB();
   showToast('Settings saved successfully!', '✓');
 }
 
@@ -2432,6 +2566,7 @@ function submitLeave() {
   if(used+days>total){ errEl.textContent=`Insufficient ${type} balance. You have ${total-used} days remaining.`; show('leaveError'); return; }
 
   DB.leaves.push({ id:DB.leaveNextId++, empId:currentUser.empId, type, from, to, reason, status:'Pending', days });
+  saveDB();
   closeModal('leaveModal');
   renderMyLeave(); renderEmpDashboard();
   if (currentRole==='admin') { renderAdminLeave(); updatePendingLeaveCount(); }
@@ -2537,6 +2672,116 @@ function renderMyAttendance() {
 // ════════════════════════════════════════════════════════════
 // BAR CHART
 // ════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
+// REGISTRATION APPROVAL (Admin)
+// ════════════════════════════════════════════════════════════
+function updateRegApprovalBadge() {
+  if (!DB.pendingRegistrations) DB.pendingRegistrations = [];
+  const n = DB.pendingRegistrations.filter(r => r.status === 'Pending').length;
+  const el = document.getElementById('regApprovalCount');
+  if (el) { el.textContent = n; el.style.display = n > 0 ? '' : 'none'; }
+  // Also push a notification dot
+  if (n > 0) {
+    const dot = document.getElementById('notifDot');
+    if (dot) dot.style.display = '';
+  }
+}
+
+function renderRegApprovals() {
+  if (!DB.pendingRegistrations) DB.pendingRegistrations = [];
+  const pending = DB.pendingRegistrations.filter(r => r.status === 'Pending');
+  const all     = DB.pendingRegistrations;
+
+  const badge = document.getElementById('regPendingBadge');
+  if (badge) { badge.textContent = pending.length; badge.className = pending.length ? 'badge badge-yellow' : 'badge badge-green'; }
+
+  const listEl = document.getElementById('regPendingList');
+  if (listEl) {
+    if (!pending.length) {
+      listEl.innerHTML = '<div class="empty-state"><div class="ei">✅</div><p>No pending registration requests</p></div>';
+    } else {
+      listEl.innerHTML = pending.map(r => `
+        <div style="padding:14px;background:rgba(251,191,36,.05);border:1px solid rgba(251,191,36,.2);border-radius:10px;margin-bottom:12px;">
+          <div class="flex-between" style="margin-bottom:8px;">
+            <div>
+              <div style="font-size:14px;font-weight:600;">${r.first} ${r.last}</div>
+              <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:2px;">${r.username} · ${r.email}</div>
+            </div>
+            <span class="badge badge-yellow">Pending</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;font-size:12px;">
+            <div><span style="color:var(--text3);">Department: </span><strong>${r.dept}</strong></div>
+            <div><span style="color:var(--text3);">Reserved ID: </span><strong style="color:var(--accent2);">${r.reservedEmpId}</strong></div>
+            <div><span style="color:var(--text3);">Requested: </span>${r.requestedAt}</div>
+          </div>
+          <div class="flex-gap">
+            <button class="btn btn-success btn-sm" onclick="approveRegistration('${r.id}')">✓ Approve & Activate</button>
+            <button class="btn btn-danger btn-sm"  onclick="denyRegistration('${r.id}')">✕ Deny</button>
+          </div>
+        </div>`).join('');
+    }
+  }
+
+  const histEl = document.getElementById('regHistoryTable');
+  if (histEl) {
+    histEl.innerHTML = all.length ? all.map(r => `
+      <tr>
+        <td class="primary">${r.first} ${r.last}</td>
+        <td class="mono">${r.username}</td>
+        <td>${deptPill(r.dept)}</td>
+        <td style="font-size:11px;color:var(--text3);">${r.requestedAt}</td>
+        <td>${statusBadge(r.status)}</td>
+      </tr>`).join('')
+    : `<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:24px;">No registration history yet</td></tr>`;
+  }
+
+  updateRegApprovalBadge();
+}
+
+function approveRegistration(reqId) {
+  const req = (DB.pendingRegistrations||[]).find(r => r.id === reqId);
+  if (!req || req.status !== 'Pending') return;
+
+  // Finalize Employee ID
+  const empId = req.reservedEmpId;
+  DB.nextEmpNum = Math.max(DB.nextEmpNum, parseInt(empId.replace('EMP-','')) + 1);
+
+  // Create employee record
+  DB.employees.push({
+    id: empId, first: req.first, last: req.last, email: req.email,
+    dept: req.dept, desig: 'New Employee',
+    doj: new Date().toISOString().split('T')[0],
+    salary: 40000, status: 'Probation', address: ''
+  });
+  leaveUsed[empId] = { 'Casual Leave':0,'Sick Leave':0,'Earned Leave':0,'Optional Leave':0 };
+
+  // Create login credentials
+  DB.users.push({ username: req.username, password: req.password, role: 'employee', empId, name: req.first+' '+req.last, email: req.email });
+
+  // Mark approved
+  req.status = 'Approved';
+
+  DB.activities.unshift({ text:`Registration of <strong>${req.first} ${req.last}</strong> (${empId}) approved`, time:'Just now', color:'#34d399' });
+
+  saveDB();
+  renderRegApprovals();
+  renderEmpTable();
+  updateEmpCount();
+  renderAdminDashboard();
+  showToast(`${req.first} ${req.last} approved! Account active as ${empId}`, '✓');
+}
+
+function denyRegistration(reqId) {
+  const req = (DB.pendingRegistrations||[]).find(r => r.id === reqId);
+  if (!req || req.status !== 'Pending') return;
+  req.status = 'Denied';
+  DB.activities.unshift({ text:`Registration of <strong>${req.first} ${req.last}</strong> was denied`, time:'Just now', color:'#f87171' });
+  saveDB();
+  renderRegApprovals();
+  updateRegApprovalBadge();
+  showToast(`${req.first} ${req.last}'s registration denied`, '✕');
+}
+
 function buildBarChart() {
   const data=[68,72,75,70,78,74,80,76,82,85,88,100];
   const container=document.getElementById('barChart');
